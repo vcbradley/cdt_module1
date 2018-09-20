@@ -1,0 +1,40 @@
+---
+title: "CDT Module 1 - R Review"
+author: "Valerie Bradley"
+date: "9/19/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Vectors
+
+a. Generate 100 standard normal random variables, and keep only the ones which are greater than 1. Don’t use a loop!
+```{r cars}
+all_norm = rnorm(100)
+hist(all_norm)
+hist(all_norm[all_norm > 1])
+```
+
+b. Write a function which takes two arguments n and min, and returns n independent random variables from a standard normal distribution truncated below by min. Let min default to 0.
+```{r 1b}
+rnorm_0 = function(n, min = 0){
+  X = rnorm(n)
+  X = unlist(lapply(X, max, min))
+  return(X)
+}
+
+hist(rnorm_0(2000, 1))
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
