@@ -7,6 +7,8 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(data.table)
 ```
 
 ## 1. Vectors
@@ -20,21 +22,251 @@ hist(all_norm[all_norm > 1])
 
 b. Write a function which takes two arguments n and min, and returns n independent random variables from a standard normal distribution truncated below by min. Let min default to 0.
 ```{r 1b}
-rnorm_0 = function(n, min = 0){
+rnorm_trunc = function(n, min = 0){
   X = rnorm(n)
   X = unlist(lapply(X, max, min))
   return(X)
 }
 
-hist(rnorm_0(2000, 1))
+hist(rnorm_trunc(2000, 1))
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+c. Generate 10k truncated normals with min set at -1 and plot as histogram
+```{r}
+samp = rnorm_trunc(10000, -1)
+hist(samp, breaks  = 10)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+d. what happens if min is large?
+```{r}
+hist(rnorm_trunc(10000,4))
+```
+
+Point here is that this method of rejection sampling is inefficient 
+
+
+### 2. Data
+
+```{r}
+library(MASS)
+data(hills)
+summary(hills)
+```
+
+a. what sort of object is hills?
+```{r}
+class(hills)
+```
+
+b. how many columns?
+```{r}
+ncol(hills)
+```
+
+c. Change "Two Breweries" to "Three Breweries"
+```{r}
+hills[which(rownames(hills) == 'Two Breweries'),]
+row.names(hills)[which(rownames(hills) == 'Two Breweries')] <-'Three Breweries'
+hills[which(rownames(hills) == 'Two Breweries'),]
+hills[which(rownames(hills) == 'Three Breweries'),]
+```
+
+d. Find the mean time for races iwth a climb greater than 1000ft
+```{r}
+with(hills[hills$climb > 1000,], mean(dist))
+```
+
+e. What sort of object is Orthodont?  How is it different from `hills`?
+```{r}
+library(nlme)
+data(Orthodont)
+head(Orthodont)
+#class(Orthodont)
+```
+It's grouped data.
+
+
+```{r}
+head(methods(print))
+#nlme:::print.groupedData(Orthodont)
+```
+
+
+
+
+### 3. Recursion
+
+The $n$th Fibonacci number is defined by the recusion $F_n=F_{n-1} + F_{n-2}$ with $F_0=F_1=1$
+
+a. Write a recursive function with argument `n` which returns the $n$th Fibonacci number
+
+```{r}
+fibonacci = function(n){
+  if(n < 0) {
+    #print(n)
+    F_n = 0
+  }else if(n <= 1){  #note this is different than the example given in Recall (they used <=2) - has to do with indexing from 0 v 1
+    #print(n)
+    F_n = 1
+  }else{
+    #print(n)
+    F_n = Recall(n-1) + Recall(n-2)
+  }
+  F_n
+}
+
+fibonacci(2)   #evaluated 3 times
+
+fibonacci(0)   #evaluated 1 time
+fibonacci(1)   #evaluated 1 time
+fibonacci(3)   #evaluated 5 times
+```
+
+
+```{r}
+fib_2 = function(n){
+  
+  f_n_minus_1 = 1
+  f_n_minus_2 = 1
+  
+  if(n < 0){
+    return(0)
+  }else if(n <= 1){
+    return(1)
+  }else{
+    #initialize f_i at the first lag
+    f_i = f_n_minus_1
+    
+     for(i in 2:n){
+       
+       #save old value
+       f_i_old = f_i
+       
+       #get new value of f_i
+       f_i = f_n_minus_1 + f_n_minus_2
+       
+       #update lag counters
+       f_n_minus_2 = f_n_minus_1
+       f_n_minus_1 = f_i_old
+       
+       print(c(i, f_i, f_n_minus_1, f_n_minus_2))
+     }
+    return(f_i)
+  }
+}
+fib_2(1)
+fib_2(2)
+fib_2(3)
+fib_2(4)
+fib_2(5)
+```
+
+
+### 4. MCMC
+a. 
+X ~ Gamma(alpha, beta)
+alpha, beta ~ Exp(1)
+
+```{r}
+#vector of data x
+alpha_true = 1
+beta_true = 2
+
+x = rgamma(100, shape = alpha_true, rate = beta_true)
+
+
+# evaluate the posterior distribution of alpha given a vector of data
+posterior = function(x, alpha, beta){
+  
+  # get prior density
+  prior_alpha = dexp(alpha, rate = 1, log = T)  # alpha ~ exp(1)
+  prior_beta = dexp(beta, rate = 1, log = T)  # beta ~ exp(1)
+  
+  likelihood = dgamma(x, alpha, beta, log = T)
+  
+  posterior = prior_alpha + prior_beta + sum(likelihood)
+  
+  return(posterior)
+}
+
+posterior(x, alpha = 1.1, beta = 2.3)
+posterior(x, alpha = 2, beta = 2)
+
+```
+
+
+b. single metropolis hasting step
+$\alpha' = \alpha + \sigma Z_1$
+$\beta' = \beta + \sigma Z_1$
+where $Z_1 ,Z_2$ are iid Standard Normal $q'(\alpha' | \alpha) ~ N(\alpha, \sigma^2)$
+```{r}
+step_MH = function(x, alpha, beta, sigma){
+  
+  alpha_prime = rnorm(n = 1, alpha, sigma)
+  beta_prime = rnorm(n = 1, beta, sigma)
+  
+  a = exp(posterior(x, alpha = alpha_prime, beta = beta_prime) - posterior(x, alpha = alpha, beta = beta))
+  u = runif(1)
+  if(u < a){
+    data.frame(alpha = alpha_prime, beta = beta_prime)
+  }else{
+    data.frame(alpha = alpha, beta = beta)
+  }
+}
+
+step_MH(x, alpha = 1.1, beta = 2.3, sigma = 0.01)
+
+```
+
+```{r}
+run_MH = function(N, x, alpha, beta, sigma){
+  chains = data.frame(t = 0, alpha = alpha, beta = beta)
+  for(t in 1:N){
+    step = step_MH(x, alpha = chains[t,]$alpha, beta = chains[t,]$beta, sigma)
+    chains[t+1, ] = c(t, step$alpha, step$beta)
+  }
+  return(chains)
+}
+chains = run_MH(5000, x = x, alpha = 1.5, beta = 1, sigma = 0.1)
+
+
+ggplot(chains, aes(x = t, y = alpha)) + geom_line(aes(color = 'alpha')) + geom_line(aes(x = t, y = beta, color = 'beta')) +
+  ggtitle(paste0("Metropolis-Hastings Sampling for Gamma(alpha, beta)\n", "alpha = ", alpha_true, ", beta = ", beta_true)) + 
+  geom_hline(yintercept = alpha_true) +
+  geom_hline(yintercept = beta_true) +
+  ylab("Parameter estimate")
+```
+
+```{r}
+ggplot(chains) + stat_density(aes(x = alpha, fill = 'alpha', alpha = 0.1)) +
+  stat_density(aes(x = beta, fill = 'beta', alpha = 0.1)) +
+  geom_vline(xintercept = mean(chains$alpha), linetype = 'dotted') + 
+  geom_vline(xintercept = alpha_true) +
+  geom_vline(xintercept = mean(chains$beta), linetype = 'dotted') + 
+  geom_vline(xintercept = beta_true) +
+  ggtitle(paste0("M-H Sampling\nPosterior parameter distributions for Gamma(alpha, beta)\nT = ", nrow(chains) - 1))
+```
+
+Let's see how this converges over time
+```{r}
+Ts = seq(250, 5000, by = 250)
+
+all_chains = lapply(Ts, FUN = run_MH, x = x, alpha = 1.5, beta = 1, sigma = 0.2)
+
+all_chains = rbindlist(all_chains)
+all_chains = as.data.table(all_chains)
+all_chains[, N := rep(Ts, times = Ts + 1)]
+
+
+all_chains[, .(mean(alpha), .N), N]
+all_chains[, .(mean(beta), .N), N]
+
+ggplot(all_chains[, .(alpha_hat = mean(alpha)), N]) + geom_point(aes(x = N, y = alpha_hat)) + geom_hline(yintercept = alpha_true)
+ggplot(all_chains[, .(beta_hat = mean(beta)), N]) + geom_point(aes(x = N, y = beta_hat)) + geom_hline(yintercept = beta_true)
+
+```
+
+
+
