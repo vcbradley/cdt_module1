@@ -229,8 +229,11 @@ run_MH = function(N, x, alpha, beta, sigma){
   }
   return(chains)
 }
-chains = run_MH(5000, x = x, alpha = 1.5, beta = 1, sigma = 0.1)
+```
 
+Now, run the full M-H algorithm and plot the resulting chains
+```{r}
+chains = run_MH(5000, x = x, alpha = 3, beta = 1, sigma = 2/sqrt(length(x)))
 
 ggplot(chains, aes(x = t, y = alpha)) + geom_line(aes(color = 'alpha')) + geom_line(aes(x = t, y = beta, color = 'beta')) +
   ggtitle(paste0("Metropolis-Hastings Sampling for Gamma(alpha, beta)\n", "alpha = ", alpha_true, ", beta = ", beta_true)) + 
@@ -239,6 +242,7 @@ ggplot(chains, aes(x = t, y = alpha)) + geom_line(aes(color = 'alpha')) + geom_l
   ylab("Parameter estimate")
 ```
 
+Plot the posterior distributions of the parameters
 ```{r}
 ggplot(chains) + stat_density(aes(x = alpha, fill = 'alpha', alpha = 0.1)) +
   stat_density(aes(x = beta, fill = 'beta', alpha = 0.1)) +
@@ -253,7 +257,7 @@ Let's see how this converges over time
 ```{r}
 Ts = seq(250, 5000, by = 250)
 
-all_chains = lapply(Ts, FUN = run_MH, x = x, alpha = 1.5, beta = 1, sigma = 0.2)
+all_chains = lapply(Ts, FUN = run_MH, x = x, alpha = 5, beta = 0.3, sigma = 0.01)
 
 all_chains = rbindlist(all_chains)
 all_chains = as.data.table(all_chains)
@@ -267,6 +271,122 @@ ggplot(all_chains[, .(alpha_hat = mean(alpha)), N]) + geom_point(aes(x = N, y = 
 ggplot(all_chains[, .(beta_hat = mean(beta)), N]) + geom_point(aes(x = N, y = beta_hat)) + geom_hline(yintercept = beta_true)
 
 ```
+
+
+d. Air pollution data.  
+```{r}
+x <- scan("/Users/valeriebradley/Documents/Oxford/Module 1/R review/airpol.txt")
+hist(x, breaks = 100, freq = FALSE, main = "Distribution of daily PM2.5 readings in Seattle, 2015", xlab = "PM2.5")
+```
+
+Model data as iid Gamma using Exp(1) priors from above.  Run for 5,000 iterations with starting points $\alpha = 1$, $\beta = 1$.
+```{r}
+sigmas = c(0.01, 0.02, 0.05)
+chains_airpol = lapply(sigmas, FUN = run_MH, N = 5000, x = x, alpha = 1, beta = 1)
+
+chains_airpol = rbindlist(chains_airpol)
+chains_airpol = as.data.table(chains_airpol)
+chains_airpol[, sigma := sort(rep(sigmas, times = 5000 + 1))]
+
+ggplot(chains_airpol) + geom_line(aes(x = t, y = alpha, group = sigma, color = as.factor(sigma))) +
+  ggtitle("Chain convergence of parameter alpha")
+```
+
+
+```{r}
+ggplot(chains_airpol) + geom_line(aes(x = t, y = beta, group = sigma, color = as.factor(sigma))) +
+  ggtitle("Chain convergence of parameter beta")
+```
+
+e. Find posterior means of $\alpha$ and $\beta$.  Plot density of corresponding Gamma distribution over the histogram of the data.
+```{r}
+chains_airpol[, lapply(.SD, mean), .SDcols = c('alpha', 'beta')]
+
+ggplot(data.frame(x = x)) + stat_density(aes(x = x, fill = 'data', alpha = 0.2)) + 
+  stat_function(fun = dgamma, args = list(shape = chains_airpol[, mean(alpha)], rate = chains_airpol[, mean(beta)]), aes(color = 'posterior')) +
+  scale_colour_manual("",values = 'black') +
+  ggtitle('Comparison of data and estimated posterior')
+```
+
+
+
+## 5. Methods
+
+
+```{r}
+setClass('biv', representation(x = "numeric", y = "numeric"))
+new_df = new('biv', x = rnorm(n = 20), y = rpois(n = 20, lambda = 5))
+new_df
+```
+
+Create a print method (that invisibly returns the object)
+```{r}
+setMethod('print', 'biv', function(x){
+  cat(paste0("Bivariate data, ", length(x@x), " entries\n"))
+  cat(paste('x :' , paste(x@x[1:min(length(x@x),6)], collapse = " "), "...\n"))
+  cat(paste('y :' , paste(x@y[1:min(length(x@y),6)], collapse = " "), "..."))
+  invisible(x)
+})
+print(new_df)
+```
+
+Construct a plot method for class `biv`
+```{r}
+setMethod('plot', 'biv', function(x){
+  layout(matrix(c(1,2,3), 1, 3, byrow = TRUE))
+  plot(x = x@x, y = x@y, xlab = 'x', ylab = 'y')
+  boxplot(x@x, xlab = 'x')
+  boxplot(x@y, xlab = 'y')
+})
+plot(new_df)
+```
+
+
+## 6. Functions
+Create a function to return a model matrix from 2 variables
+```{r}
+getSimpleMatrix = function(x,z){
+  if(length(x) != length(z)) stop(print("x and z must have the same number of entries"))
+  
+  n_obs = length(x)
+  intercept = rep(1, n_obs)
+  predictors = c(x,z)
+  interactions = x * z
+  
+  return(matrix(c(intercept, predictors, interactions), ncol = 4, byrow = F))
+}
+
+getSimpleMatrix(x = c(1,2,3,4,5), z = c(6,7,8,9,0))
+
+```
+
+Check with model.matrix
+```{r}
+model.matrix(as.formula(~1+x+z+x:z), data = data.frame(x = c(1,2,3,4,5), z = c(6,7,8,9,0)))
+```
+
+Create a function to return a model matrix from n variables
+```{r}
+getMatrix = function(...){
+  inputs = list(...)
+  
+  #check input length
+  if(length(unique(unlist(lapply(inputs, length)))) > 1) stop("All inputs must have the same number of observations")
+  
+  n_obs = length(x)
+  n_vars = length(inputs)
+  
+ predictors = matrix(unlist(inputs), ncol = n_vars, byrow = F)
+ interactions = apply(combn(x = n_vars, 2), 2, function(x){
+    inputs[[x[1]]] * inputs[[x[2]]]
+  })
+ 
+ return(cbind(rep(1, n_obs), predictors, interactions))
+}
+
+getMatrix(x = c(1,2,3,4,5), z = c(6,7,8,9,0), y = c(2,4,6,8,10))
+```
+
 
 
 
