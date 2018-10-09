@@ -14,10 +14,27 @@ library(data.table)
 ## 1. Vectors
 
 a. Generate 100 standard normal random variables, and keep only the ones which are greater than 1. Don’t use a loop!
+
+
+Problem with this is that the number of R.V.s generated 
 ```{r cars}
-all_norm = rnorm(100)
+all_norm = rnorm(1000)
 hist(all_norm)
-hist(all_norm[all_norm > 1])
+hist(all_norm[all_norm > 1], breaks = 10)
+
+truncNorm <- function(n, min){
+  out <- c()
+  
+  while(length(out) < n){
+    tmp <- rnorm(n)
+    tmp <- tmp[tmp > min]
+    out <- c(out, tmp)   #will copy out each time -- uses more memory.  alternately, you could initialize
+  }
+  
+  out[seq_len(n)]  #sequence of length n
+}
+
+hist(truncNorm(100,1), breaks = 15)
 ```
 
 b. Write a function which takes two arguments n and min, and returns n independent random variables from a standard normal distribution truncated below by min. Let min default to 0.
@@ -98,6 +115,8 @@ head(methods(print))
 
 ### 3. Recursion
 
+Important point here: R is bad a recursion.
+
 The $n$th Fibonacci number is defined by the recusion $F_n=F_{n-1} + F_{n-2}$ with $F_0=F_1=1$
 
 a. Write a recursive function with argument `n` which returns the $n$th Fibonacci number
@@ -127,40 +146,24 @@ fibonacci(3)   #evaluated 5 times
 
 ```{r}
 fib_2 = function(n){
+  fib_seq = c(1,2)
   
-  f_n_minus_1 = 1
-  f_n_minus_2 = 1
+  if(n < 0) return(0)
+  if(n <= 1) return(1)
+  if(n == 2) return(2)
   
-  if(n < 0){
-    return(0)
-  }else if(n <= 1){
-    return(1)
-  }else{
-    #initialize f_i at the first lag
-    f_i = f_n_minus_1
-    
-     for(i in 2:n){
-       
-       #save old value
-       f_i_old = f_i
-       
-       #get new value of f_i
-       f_i = f_n_minus_1 + f_n_minus_2
-       
-       #update lag counters
-       f_n_minus_2 = f_n_minus_1
-       f_n_minus_1 = f_i_old
-       
-       print(c(i, f_i, f_n_minus_1, f_n_minus_2))
-     }
-    return(f_i)
+  for(i in 3:n){
+       fib_seq[i] <- fib_seq[i-1] + fib_seq[i-2]
   }
+  
+  return(fib_seq[n])
 }
 fib_2(1)
 fib_2(2)
 fib_2(3)
 fib_2(4)
 fib_2(5)
+fib_2(100)
 ```
 
 
@@ -298,6 +301,14 @@ ggplot(chains_airpol) + geom_line(aes(x = t, y = beta, group = sigma, color = as
   ggtitle("Chain convergence of parameter beta")
 ```
 
+```{r}
+ggplot(chains_airpol, aes(x = alpha, y = beta)) + geom_point() + 
+  ggtitle("M-H Exploration of the (alpha, beta) parameter space") +
+  geom_density2d()
+```
+
+
+
 e. Find posterior means of $\alpha$ and $\beta$.  Plot density of corresponding Gamma distribution over the histogram of the data.
 ```{r}
 chains_airpol[, lapply(.SD, mean), .SDcols = c('alpha', 'beta')]
@@ -311,7 +322,6 @@ ggplot(data.frame(x = x)) + stat_density(aes(x = x, fill = 'data', alpha = 0.2))
 
 
 ## 5. Methods
-
 
 ```{r}
 setClass('biv', representation(x = "numeric", y = "numeric"))
@@ -387,6 +397,17 @@ getMatrix = function(...){
 getMatrix(x = c(1,2,3,4,5), z = c(6,7,8,9,0), y = c(2,4,6,8,10))
 ```
 
+###7. Mixtures
+$X^{(i)}  = (X_{i1},...,X_{ik})$ where each $X_{ij}$ is binary
+A discrete mixture model assumes that each component of the vector $X^(i)$ is independent, conditional upon an unknown class label $U_i \in \{1,...,l\}$
+a. write down the likelihood for one observation $X^{(1)}$, and then for $n$ observations.  What are the parameters to be estimated?
+$$
 
+L()
+$$
+b.
+```{r}
+
+```
 
 
