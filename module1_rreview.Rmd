@@ -323,6 +323,8 @@ ggplot(data.frame(x = x)) + stat_density(aes(x = x, fill = 'data', alpha = 0.2))
 
 ## 5. Methods
 
+
+Note: solutions below use S4 methods
 ```{r}
 setClass('biv', representation(x = "numeric", y = "numeric"))
 new_df = new('biv', x = rnorm(n = 20), y = rpois(n = 20, lambda = 5))
@@ -343,13 +345,18 @@ print(new_df)
 Construct a plot method for class `biv`
 ```{r}
 setMethod('plot', 'biv', function(x){
-  layout(matrix(c(1,2,3), 1, 3, byrow = TRUE))
+  layout(matrix(c(1,2), 1, 2, byrow = TRUE))
   plot(x = x@x, y = x@y, xlab = 'x', ylab = 'y')
-  boxplot(x@x, xlab = 'x')
-  boxplot(x@y, xlab = 'y')
+  boxplot(x@x, x@y)
 })
 plot(new_df)
 ```
+
+Notes:
+- S4 methods won't have `names()`, instead use `slotNames()`
+- S4 methods are slightly slower, but maybe more stable?
+- use the `@` operator to access slots -- don't make your user use the `@` (create methods instead)
+
 
 
 ## 6. Functions
@@ -381,7 +388,8 @@ getMatrix = function(...){
   inputs = list(...)
   
   #check input length
-  if(length(unique(unlist(lapply(inputs, length)))) > 1) stop("All inputs must have the same number of observations")
+  if(length(unique(unlist(lapply(inputs, length)))) > 1) 
+    stop("All inputs must have the same number of observations")
   
   n_obs = length(x)
   n_vars = length(inputs)
@@ -401,10 +409,7 @@ getMatrix(x = c(1,2,3,4,5), z = c(6,7,8,9,0), y = c(2,4,6,8,10))
 $X^{(i)}  = (X_{i1},...,X_{ik})$ where each $X_{ij}$ is binary
 A discrete mixture model assumes that each component of the vector $X^(i)$ is independent, conditional upon an unknown class label $U_i \in \{1,...,l\}$
 a. write down the likelihood for one observation $X^{(1)}$, and then for $n$ observations.  What are the parameters to be estimated?
-$$
-
-L()
-$$
+$$L()$$
 b.
 ```{r}
 
